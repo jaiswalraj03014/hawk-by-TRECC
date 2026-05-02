@@ -4,9 +4,9 @@
       <img src="./logo.png" width="50" style="border-radius: 12px;" />
     </td>
     <td style="padding: 0; border: none; vertical-align: middle;">
-      <h1 style="margin: 0;">Hawk (by TRECC)</h1>
+      <h1 style="margin: 0;">Hawk (by <a href="https://trecc.finance" style="color: #FF6B00; text-decoration: none;">TRECC</a>)</h1>
     </td>
-  </tr>
+  </table>
 </table>
 
 ### *Verifiable, Autonomous Liquidity Management*
@@ -40,16 +40,7 @@ Current DeFi agents trade in the dark. If an agent loses money, the user has no 
 
 ## Architecture Flow
 
-```mermaid
-graph TD
-    A[Uniswap V3 Pools] -->|Monitor Ticks| B(Hawk Engine)
-    B -->|Out of Range| C{Strategy Manager}
-    C -->|Calculate New Range| D[Generate Intent Packet]
-    D -->|Step 1: Secure Reasoning| E[(0G Storage)]
-    E -->|Step 2: Return Hash| F[KeeperHub Execution]
-    F -->|Step 3: Execute Swap| A
-    G[hawk.agent.eth] -.->|Verify History| E
-```
+<img src="./diagram.png" alt="Architecture Flow Diagram" style="width: 100%; max-width: 800px; border-radius: 8px;" />
 
 1. **Monitor:** Hawk tracks [Uniswap V3](https://uniswap.org) pool ticks to identify when liquidity is "Out of Range."
 2. **Analyze:** The core engine calculates the optimal new price range for maximum fee accumulation.
@@ -99,7 +90,7 @@ npm run start
 
 See [FEEDBACK.md](./FEEDBACK.md) for our detailed experience building with the Uniswap API and KeeperHub infrastructure.
 
-**Built with by the TRECC Team.**
+**Built with by the <a href="https://trecc.finance" style="color: #FF6B00; text-decoration: none;">TRECC</a> Team.**
 
 ---
 
