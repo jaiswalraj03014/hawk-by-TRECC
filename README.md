@@ -1,4 +1,7 @@
-# <img src="./logo.png" width="50" vertical-align="middle"> Hawk (by TRECC)
+<div align="center">
+  <img src="./logo.png" width="50" style="border-radius: 12px;" />
+  <h1>Hawk (by TRECC)</h1>
+</div>
 
 ### *Verifiable, Autonomous Liquidity Management*
 
@@ -67,7 +70,7 @@ src/
 
 ---
 
-## 🏁 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -90,9 +93,10 @@ npm run start
 
 See [FEEDBACK.md](./FEEDBACK.md) for our detailed experience building with the Uniswap API and KeeperHub infrastructure.
 
+**Built with by the TRECC Team.**
+
 ---
 
 ### Pro-Tip for the Judges:
 
 When you look at the **0G Explorer**, you will see a series of JSON uploads. These aren't just logs—they are the **Hawk's Brain**, proving that every trade was calculated, intentional, and non-hallucinatory.
-```
