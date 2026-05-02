@@ -1,0 +1,28 @@
+{
+  "name": "hawk-by-trecc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaiswalraj03014/hawk-by-TRECC.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jaiswalraj03014/hawk-by-TRECC/issues"
+  },
+  "homepage": "https://github.com/jaiswalraj03014/hawk-by-TRECC#readme",
+  "dependencies": {
+    "@0glabs/0g-ts-sdk": "^0.3.3",
+    "@uniswap/sdk-core": "^7.13.0",
+    "@uniswap/v3-sdk": "^3.30.0",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.16.0"
+  }
+}
