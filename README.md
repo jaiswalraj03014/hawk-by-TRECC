@@ -1,7 +1,4 @@
-<div align="center">
-  <img src="./logo.png" width="50" style="border-radius: 12px;" />
-  <h1>Hawk (by TRECC)</h1>
-</div>
+<img src="./logo.png" width="50" style="border-radius: 12px; vertical-align: middle;" /> <strong style="font-size: 2em; vertical-align: middle;">Hawk (by TRECC)</strong>
 
 ### *Verifiable, Autonomous Liquidity Management*
 
