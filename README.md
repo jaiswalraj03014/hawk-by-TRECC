@@ -39,6 +39,7 @@ Hawk answers this with a Proof-of-Intent flow and a tranche-based vault model.
 ## What We Built
 
 - **ERC-4626 senior vault** for USDC deposits, deployed on Sepolia.
+- **ERC-7579 agent containment layer** for modeling modular smart-account permissions around autonomous execution.
 - **Operator bond system** where agents need posted ETH collateral before being approved.
 - **AI strategy endpoint** that asks Gemini for structured WETH intent decisions.
 - **Market data fallback stack** using Uniswap Trading API first, then Chainlink ETH/USD on Sepolia.
@@ -54,8 +55,9 @@ Hawk answers this with a Proof-of-Intent flow and a tranche-based vault model.
 4. If the Uniswap quote is unavailable, read Chainlink's Sepolia ETH/USD feed.
 5. Send market state into Gemini 2.5 Flash.
 6. Render the agent's structured BUY, SELL, or HOLD intent.
-7. Mark the decision as 0G-secured in the execution feed.
-8. Route the action through the KeeperHub execution path in the prototype.
+7. Contain the agent action through the ERC-7579 smart-account module layer.
+8. Mark the decision as 0G-secured in the execution feed.
+9. Route the action through the KeeperHub execution path in the prototype.
 
 > Current hackathon note: the repository includes the production-facing integration points and UI flow. 0G storage and KeeperHub execution are represented through the agent modules and execution feed for demo reliability, while the ERC-4626 vault is deployed on Sepolia.
 
@@ -78,6 +80,7 @@ Deployment metadata lives in [`contracts/deployments/sepolia.json`](./contracts/
 | <img src="https://www.google.com/s2/favicons?sz=64&domain=keeperhub.com" width="24" alt="KeeperHub logo" /> | **KeeperHub** | Execution and routing layer for agent actions after intent creation. | [keeperhub.com](https://keeperhub.com/) |
 | <img src="https://cdn.simpleicons.org/chainlink/375BD2" width="24" alt="Chainlink logo" /> | **Chainlink Price Feeds** | Reliable fallback oracle for ETH/USD pricing on Sepolia when Uniswap API data is unavailable. | [Price Feeds](https://docs.chain.link/data-feeds/price-feeds) |
 | <img src="https://cdn.simpleicons.org/privy/FFFFFF" width="24" alt="Privy logo" /> | **Privy** | Wallet login, embedded wallet support, and user onboarding. | [privy.io](https://www.privy.io/) |
+| <img src="https://cdn.simpleicons.org/ethereum/FFFFFF" width="24" alt="ERC-7579 logo" /> | **ERC-7579** | Modular smart-account standard used as Hawk's agent containment model for scoped execution permissions. | [EIP-7579](https://eips.ethereum.org/EIPS/eip-7579) |
 | <img src="https://www.google.com/s2/favicons?sz=64&domain=ai.google.dev" width="24" alt="Gemini logo" /> | **Gemini API** | AI reasoning layer that emits structured trading intents with confidence and routing metadata. | [Gemini docs](https://ai.google.dev/gemini-api/docs/models/gemini) |
 | <img src="https://cdn.simpleicons.org/ethereum/FFFFFF" width="24" alt="Ethereum logo" /> | **Ethereum Sepolia** | Testnet deployment environment for the Hawk vault and oracle reads. | [ethereum.org](https://ethereum.org/developers/docs/networks/) |
 | <img src="https://cdn.simpleicons.org/ens/5298FF" width="24" alt="ENS logo" /> | **ENS** | Human-readable agent identity shown as `hawk.agent.eth` in the dashboard. | [ens.domains](https://ens.domains/) |
@@ -88,32 +91,6 @@ Deployment metadata lives in [`contracts/deployments/sepolia.json`](./contracts/
 
 <img src="./diagram.png" alt="Hawk architecture diagram" width="900" />
 
-```text
-User / Operator
-      |
-      v
-Privy Wallet Login
-      |
-      v
-Hawk Dashboard  <--------  Sepolia RPC
-      |                         |
-      |                         v
-      |                  Hawk ERC-4626 Vault
-      |
-      v
-Next.js Agent API
-      |
-      +--> Uniswap Trading API quote
-      |
-      +--> Chainlink ETH/USD fallback
-      |
-      +--> Gemini structured decision
-      |
-      +--> 0G Proof-of-Intent record
-      |
-      v
-KeeperHub execution route
-```
 
 ## Smart Contract Design
 
@@ -123,6 +100,8 @@ KeeperHub execution route
 - `postBond()`: lets operators post ETH as first-loss collateral.
 - `registerAgent(address agent)`: approves an agent once the operator has enough bond.
 - `slashBond(address operator, uint256 amount)`: owner-controlled slashing for bad execution in the prototype.
+
+The deployed vault demonstrates the capital structure, while ERC-7579 describes the modular smart-account layer Hawk uses for agent containment: the agent can reason freely, but execution is scoped through a permissioned module path before KeeperHub routing.
 
 This is intentionally minimal for the hackathon: the contract demonstrates the capital structure and agent containment primitive without burying the core idea under unnecessary contract surface area.
 
@@ -210,7 +189,7 @@ Open `http://localhost:3000`.
 
 ## Built With
 
-Next.js, React, TypeScript, Tailwind CSS, ethers.js, Hardhat, Solidity, OpenZeppelin Contracts, Privy, Gemini API, Uniswap APIs, Chainlink Price Feeds, 0G, KeeperHub, and Sepolia.
+Next.js, React, TypeScript, Tailwind CSS, ethers.js, Hardhat, Solidity, OpenZeppelin Contracts, ERC-4626, ERC-7579, Privy, Gemini API, Uniswap APIs, Chainlink Price Feeds, 0G, KeeperHub, and Sepolia.
 
 ---
 
