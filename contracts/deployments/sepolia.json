@@ -1,0 +1,8 @@
+{
+  "contractName": "Hawk",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "address": "0x387Be077b26E473d42BE0fF919aeb63Cd241545c",
+  "underlyingAsset": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+  "timestamp": "2026-05-03T11:53:25.378Z"
+}
