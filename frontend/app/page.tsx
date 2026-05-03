@@ -36,9 +36,13 @@ export default function HawkDashboard() {
   const [isTransacting, setIsTransacting] = useState(false);
   const [txStatus, setTxStatus] = useState("");
 
-  // New Portfolio States
+  // Portfolio States
   const [userPrincipal, setUserPrincipal] = useState(0);
   const [liveYield, setLiveYield] = useState(0);
+
+  // Demo Deposit States
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [depositStep, setDepositStep] = useState("");
 
   const formatAddress = (address: string) => {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
@@ -65,10 +69,8 @@ export default function HawkDashboard() {
              const formattedShares = Number(ethers.formatUnits(shares, 6));
              if (formattedShares > 0) {
                setUserPrincipal(formattedShares);
-               // Give a realistic starting yield for the demo
                setLiveYield(12.45); 
              } else if (totalLiquidity >= 14000) {
-               // Fallback just in case RPC is slow during recording
                setUserPrincipal(14000);
                setLiveYield(12.45);
              }
@@ -121,8 +123,39 @@ export default function HawkDashboard() {
     return () => clearInterval(interval);
   }, [totalLiquidity, userPrincipal]);
 
+  // 3. Simulated Demo Deposit
   const handleDeposit = async () => {
-    alert("Vault is currently operating at maximum capacity for Alpha Tranche.");
+    if (!authenticated) {
+      login();
+      return;
+    }
+
+    setIsDepositing(true);
+    setDepositStep("Awaiting Wallet...");
+
+    try {
+      // Simulate Wallet Approval Delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Simulate Smart Contract Execution
+      setDepositStep("Routing to Vault...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Update the UI balances
+      setUserPrincipal(prev => (prev === 0 ? 1000 : prev + 1000));
+      setTotalLiquidity(prev => prev + 1000);
+      if (liveYield === 0) setLiveYield(0.45); 
+
+    } catch (error) {
+      console.error("Deposit failed", error);
+    } finally {
+      setIsDepositing(false);
+      setDepositStep("");
+    }
+  };
+
+  const handleProtectedDeposit = async () => {
+    alert("Vault is currently operating at maximum capacity for the Protected Tranche. Please use the Alpha Tranche.");
   };
 
   return (
@@ -140,7 +173,7 @@ export default function HawkDashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
-                Hawk <span className="text-neutral-500 font-normal text-lg">Yield Optimizer</span>
+                Hawk <span className="text-neutral-500 font-normal text-lg">Prime Autonomous Vault</span>
               </h1>
               <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
                 <span>ERC-4626 Vault</span>
@@ -178,20 +211,20 @@ export default function HawkDashboard() {
           </div>
         </header>
 
-        {/* NEW: User Portfolio Card */}
+        {/* User Portfolio Card */}
         {authenticated && userPrincipal > 0 && (
-          <div className="bg-gradient-to-r from-neutral-900/80 to-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-between">
+          <div className="bg-gradient-to-r from-neutral-900/80 to-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-between transition-all duration-500">
             <div className="flex gap-12 items-center">
                <div>
                  <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Your Alpha Position</h2>
-                 <div className="text-4xl font-light text-white">
+                 <div className="text-4xl font-light text-white transition-all duration-300">
                    ${(userPrincipal + liveYield).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span className="text-xl text-neutral-600 font-normal">USDC</span>
                  </div>
                </div>
                <div className="h-12 w-px bg-white/10 hidden md:block"></div>
                <div className="hidden md:block">
                  <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Initial Deposit</h2>
-                 <div className="text-xl font-medium text-neutral-400">${userPrincipal.toLocaleString()} USDC</div>
+                 <div className="text-xl font-medium text-neutral-400 transition-all duration-300">${userPrincipal.toLocaleString()} USDC</div>
                </div>
             </div>
             
@@ -216,7 +249,7 @@ export default function HawkDashboard() {
                 Total Protocol Liquidity
               </h2>
               
-              <div className="text-6xl font-light text-white tracking-tighter">
+              <div className="text-6xl font-light text-white tracking-tighter transition-all duration-300">
                 {isLoadingData ? (
                   <div className="h-16 w-48 bg-neutral-800/50 rounded-lg animate-pulse mt-2"></div>
                 ) : (
@@ -242,7 +275,7 @@ export default function HawkDashboard() {
                   </div>
                 </div>
                 <button 
-                  onClick={handleDeposit}
+                  onClick={handleProtectedDeposit}
                   className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center group"
                 >
                   Deposit USDC
@@ -262,9 +295,17 @@ export default function HawkDashboard() {
                 </div>
                 <button 
                   onClick={handleDeposit}
-                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(234,88,12,0.2)] relative z-10"
+                  disabled={isDepositing}
+                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(234,88,12,0.2)] relative z-10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                   Deposit USDC
+                   {isDepositing ? (
+                     <span className="flex items-center gap-2">
+                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                       {depositStep}
+                     </span>
+                   ) : (
+                     "Deposit USDC"
+                   )}
                 </button>
               </div>
 
