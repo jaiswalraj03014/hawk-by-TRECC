@@ -1,8 +1,12 @@
-# 🦅 Hawk Developer Feedback
+<p align="center">
+  <img src="./logo.png" width="80" alt="Hawk logo" />
+</p>
+
+<h1 align="center">Hawk Developer Feedback</h1>
 
 This document contains our team's direct feedback on the developer experience (DX) of integrating the sponsor technologies for the ETHGlobal Open Agents hackathon.
 
-## 🦄 Uniswap Foundation (Trading API)
+## Uniswap Foundation (Trading API)
 
 ### What Worked Well
 
@@ -21,7 +25,7 @@ An **"Agentic SDK"** wrapper for the Uniswap API. If the API could natively outp
 
 ---
 
-## 🛡️ KeeperHub
+## KeeperHub
 
 ### What Worked Well
 
@@ -35,7 +39,7 @@ The core architecture of delegating execution to bypass mempool congestion is ex
 
 ---
 
-## 🗄️ 0G Storage
+## 0G Storage
 
 ### What Worked Well
 
