@@ -13,7 +13,7 @@ const chainlinkABI = [
 
 export async function GET() {
   try {
-    let currentWethPrice = "3050.00";
+    let currentWethPrice = "0.00";
 
     // 1. ATTEMPT 1: Official Uniswap API
     try {
@@ -37,7 +37,7 @@ export async function GET() {
       if (uniswapData?.quote?.output?.amount) {
         currentWethPrice = (Number(uniswapData.quote.output.amount) / 1000000).toFixed(2);
       } else {
-        throw new Error("Uniswap testnet route failed.");
+        throw new Error("Uniswap routing failed.");
       }
     } catch (uniswapError) {
       // 2. ATTEMPT 2: Chainlink On-Chain Oracle
@@ -47,16 +47,17 @@ export async function GET() {
         const roundData = await priceFeed.latestRoundData();
         currentWethPrice = (Number(roundData.answer) / 100000000).toFixed(2);
       } catch (chainlinkError) {
-        console.warn("Oracles busy, using safe fallback for WETH price.");
+        console.warn("Oracles busy, aborting execution to protect capital.");
+        return NextResponse.json({ error: "Market Oracles Offline. Execution Halted." }, { status: 503 });
       }
     }
 
-    // 3. Wake up Gemini
+    // 3. WAKE UP GEMINI
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     const prompt = `
-      You are the core intelligence for "Hawk", an autonomous DeFi Prime Brokerage agent.
-      Your job is to manage the "Alpha Tranche" which currently has 14,000 USDC.
+      You are the core intelligence for "Hawk", an autonomous DeFi yield agent.
+      Your job is to manage the "Alpha Tranche" which currently holds USDC.
       
       Current Market Data:
       - Asset: WETH
@@ -75,30 +76,25 @@ export async function GET() {
 
     let decision;
 
-    // 4. SMART FALLBACK: Try Gemini, but catch Rate Limits safely
+    // 4. PRODUCTION FALLBACK: The Circuit Breaker
     try {
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
       const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       decision = JSON.parse(cleanJson);
     } catch (geminiError) {
-      console.log("Gemini API limit hit! Silently loading cached simulation for demo...");
+      console.error("Gemini API limit hit! Activating Protocol Circuit Breaker...");
       
-      // If Gemini blocks us, feed the UI a perfectly realistic cached decision
-      const fallbackIntents = ["HOLD", "BUY", "HOLD"];
-      const randomIntent = fallbackIntents[Math.floor(Math.random() * fallbackIntents.length)];
-      
+      // In production, if the brain goes offline, we DO NOT guess. We lock down the vault.
       decision = {
-        intent: randomIntent,
-        confidence: 88,
-        reasoning: randomIntent === "HOLD" 
-          ? `WETH price at $${currentWethPrice} shows consolidation. Holding capital to preserve Alpha Tranche yield.`
-          : `Micro-volatility detected at $${currentWethPrice}. Securing intent to accumulate WETH delta via KeeperHub.`,
-        routing: "KeeperHub"
+        intent: "HOLD",
+        confidence: 100,
+        reasoning: "SYSTEM SAFE MODE: AI Core offline. Capital preservation active.",
+        routing: "None"
       };
     }
 
-    // 5. Return the true hybrid data to the frontend
+    // 5. Return the verifiable data to the frontend
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       market_data: { weth_price: currentWethPrice },

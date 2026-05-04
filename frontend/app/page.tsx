@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Montserrat } from 'next/font/google';
 import { ethers } from 'ethers';
@@ -12,35 +12,38 @@ const montserrat = Montserrat({
 const VAULT_ADDRESS = "0x387Be077b26E473d42BE0fF919aeb63Cd241545c";
 const SEPOLIA_USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 
+// Added convertToAssets to read the true USDC value of the user's shares
 const vaultABI = [
   "function totalAssets() view returns (uint256)",
   "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
   "function balanceOf(address account) view returns (uint256)",
+  "function convertToAssets(uint256 shares) view returns (uint256)",
   "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)"
 ];
 
 const usdcABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function balanceOf(address account) view returns (uint256)"
 ];
 
 export default function HawkDashboard() {
   const { ready, authenticated, login, logout, user } = usePrivy();
-  const { wallets } = useWallets();
+  const { wallets } = useWallets(); // Grab the active injected wallet
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [totalLiquidity, setTotalLiquidity] = useState(0); 
   const [marketTick, setMarketTick] = useState<string>("SYNCING...");
   const [apiStatus, setApiStatus] = useState<string>("Connecting Agent...");
   const [logs, setLogs] = useState<string[]>([]);
-  const [isTransacting, setIsTransacting] = useState(false);
-  const [txStatus, setTxStatus] = useState("");
 
-  // Portfolio States
-  const [userPrincipal, setUserPrincipal] = useState(0);
-  const [liveYield, setLiveYield] = useState(0);
+  // Real Portfolio States
+  const [userShares, setUserShares] = useState(0);
+  const [userAssetValue, setUserAssetValue] = useState(0);
+  const [userUsdcBalance, setUserUsdcBalance] = useState(0);
 
-  // Demo Deposit States
+  // Real Transaction States
+  const [depositAmount, setDepositAmount] = useState<string>("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositStep, setDepositStep] = useState("");
 
@@ -48,50 +51,58 @@ export default function HawkDashboard() {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
   };
 
-  // 1. Fetch Protocol TVL & User Balance
-  useEffect(() => {
-    async function fetchVaultData() {
+  // 1. Fetch Real Protocol TVL & User Balance
+  const fetchVaultData = useCallback(async () => {
+    try {
+      // Use public RPC for read-only data
+      const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
+      const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, provider);
+      const usdcContract = new ethers.Contract(SEPOLIA_USDC, usdcABI, provider);
+
       try {
-        const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
-        const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, provider);
-
-        try {
-          const totalAssets = await vaultContract.totalAssets();
-          setTotalLiquidity(Number(ethers.formatUnits(totalAssets, 6))); 
-        } catch (e) {
-          setTotalLiquidity(14100); 
-        }
-
-        // Fetch actual user balance if connected
-        if (authenticated && user?.wallet?.address) {
-           try {
-             const shares = await vaultContract.balanceOf(user.wallet.address);
-             const formattedShares = Number(ethers.formatUnits(shares, 6));
-             if (formattedShares > 0) {
-               setUserPrincipal(formattedShares);
-               setLiveYield(12.45); 
-             } else if (totalLiquidity >= 14000) {
-               setUserPrincipal(14000);
-               setLiveYield(12.45);
-             }
-           } catch(e) {
-             console.warn("User balance read failed");
-           }
-        }
-        setIsLoadingData(false);
-      } catch (error) {
-        setTotalLiquidity(14100);
-        setIsLoadingData(false);
+        const totalAssets = await vaultContract.totalAssets();
+        setTotalLiquidity(Number(ethers.formatUnits(totalAssets, 6))); 
+      } catch (e) {
+        console.warn("Failed to fetch TVL");
+        setTotalLiquidity(0);
       }
+
+      // Fetch actual user balances if connected
+      if (authenticated && user?.wallet?.address) {
+         try {
+           // Read USDC Wallet Balance
+           const usdcBal = await usdcContract.balanceOf(user.wallet.address);
+           setUserUsdcBalance(Number(ethers.formatUnits(usdcBal, 6)));
+
+           // Read Vault Shares & True Value
+           const shares = await vaultContract.balanceOf(user.wallet.address);
+           const formattedShares = Number(ethers.formatUnits(shares, 6)); // Assuming shares are 6 decimals
+           
+           if (shares > 0n) {
+             setUserShares(formattedShares);
+             const assetValue = await vaultContract.convertToAssets(shares);
+             setUserAssetValue(Number(ethers.formatUnits(assetValue, 6)));
+           } else {
+             setUserShares(0);
+             setUserAssetValue(0);
+           }
+         } catch(e) {
+           console.warn("User balance read failed", e);
+         }
+      }
+      setIsLoadingData(false);
+    } catch (error) {
+      setIsLoadingData(false);
     }
+  }, [authenticated, user]);
+
+  useEffect(() => {
     fetchVaultData();
-  }, [authenticated, user, totalLiquidity]);
+  }, [fetchVaultData]);
 
   // 2. Poll the Gemini Agent API
   useEffect(() => {
     async function runAgent() {
-      if (totalLiquidity === 0) return;
-
       try {
         const res = await fetch('/api/agent');
         const data = await res.json();
@@ -107,11 +118,6 @@ export default function HawkDashboard() {
             `----------------------------------------`,
             ...prev
           ].slice(0, 20));
-
-          // Simulate live yield accruing from agent trades
-          if (userPrincipal > 0) {
-            setLiveYield(prev => prev + (Math.random() * 0.40));
-          }
         }
       } catch (e) {
         console.error("Agent fetch failed", e);
@@ -121,33 +127,67 @@ export default function HawkDashboard() {
     runAgent();
     const interval = setInterval(runAgent, 10000); 
     return () => clearInterval(interval);
-  }, [totalLiquidity, userPrincipal]);
+  }, []);
 
-  // 3. Simulated Demo Deposit
+  // 3. REAL Deposit Execution (Approve + Deposit)
   const handleDeposit = async () => {
     if (!authenticated) {
       login();
       return;
     }
+    
+    if (!depositAmount || isNaN(Number(depositAmount)) || Number(depositAmount) <= 0) {
+      alert("Please enter a valid USDC amount.");
+      return;
+    }
+
+    if (!wallets || wallets.length === 0) {
+      alert("No wallet connected.");
+      return;
+    }
 
     setIsDepositing(true);
-    setDepositStep("Awaiting Wallet...");
+    setDepositStep("Awaiting Signature...");
 
     try {
-      // Simulate Wallet Approval Delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Get the real Web3 provider from Privy
+      const currentWallet = wallets[0];
+      const provider = await currentWallet.getEthereumProvider();
+      const ethersProvider = new ethers.BrowserProvider(provider as any);
+      const signer = await ethersProvider.getSigner();
+
+      const usdcContract = new ethers.Contract(SEPOLIA_USDC, usdcABI, signer);
+      const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, signer);
+
+      const amountWei = ethers.parseUnits(depositAmount, 6); // USDC uses 6 decimals
+
+      // Step A: Check Allowance
+      setDepositStep("Checking Allowance...");
+      const allowance = await usdcContract.allowance(currentWallet.address, VAULT_ADDRESS);
       
-      // Simulate Smart Contract Execution
-      setDepositStep("Routing to Vault...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (allowance < amountWei) {
+        setDepositStep("Approving USDC...");
+        const approveTx = await usdcContract.approve(VAULT_ADDRESS, amountWei);
+        await approveTx.wait(); // Wait for confirmation
+      }
 
-      // Update the UI balances
-      setUserPrincipal(prev => (prev === 0 ? 1000 : prev + 1000));
-      setTotalLiquidity(prev => prev + 1000);
-      if (liveYield === 0) setLiveYield(0.45); 
+      // Step B: Execute Deposit
+      setDepositStep("Confirming Deposit...");
+      const depositTx = await vaultContract.deposit(amountWei, currentWallet.address);
+      setDepositStep("Executing on-chain...");
+      await depositTx.wait(); // Wait for confirmation
 
-    } catch (error) {
+      // Step C: Success! Clean up and refresh UI
+      setDepositAmount("");
+      await fetchVaultData(); // Pull fresh balances from blockchain
+
+    } catch (error: any) {
       console.error("Deposit failed", error);
+      if (error.code === 'ACTION_REJECTED') {
+        alert("Transaction rejected by user.");
+      } else {
+        alert("Transaction failed. Check console for details.");
+      }
     } finally {
       setIsDepositing(false);
       setDepositStep("");
@@ -211,30 +251,20 @@ export default function HawkDashboard() {
           </div>
         </header>
 
-        {/* User Portfolio Card */}
-        {authenticated && userPrincipal > 0 && (
+        {/* Real User Portfolio Card */}
+        {authenticated && userShares > 0 && (
           <div className="bg-gradient-to-r from-neutral-900/80 to-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-between transition-all duration-500">
             <div className="flex gap-12 items-center">
                <div>
-                 <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Your Alpha Position</h2>
+                 <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Your Alpha Position (Real Value)</h2>
                  <div className="text-4xl font-light text-white transition-all duration-300">
-                   ${(userPrincipal + liveYield).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span className="text-xl text-neutral-600 font-normal">USDC</span>
+                   ${userAssetValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span className="text-xl text-neutral-600 font-normal">USDC</span>
                  </div>
                </div>
                <div className="h-12 w-px bg-white/10 hidden md:block"></div>
                <div className="hidden md:block">
-                 <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Initial Deposit</h2>
-                 <div className="text-xl font-medium text-neutral-400 transition-all duration-300">${userPrincipal.toLocaleString()} USDC</div>
-               </div>
-            </div>
-            
-            <div className="text-right">
-               <h2 className="text-xs font-bold text-green-500/80 uppercase tracking-widest mb-1 flex items-center justify-end gap-2">
-                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                 Agent Yield Generated
-               </h2>
-               <div className="text-4xl font-mono text-green-400">
-                 +${liveYield.toFixed(2)}
+                 <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Vault Shares Held</h2>
+                 <div className="text-xl font-medium text-neutral-400 transition-all duration-300">{userShares.toLocaleString()} HA-USDC</div>
                </div>
             </div>
           </div>
@@ -261,7 +291,12 @@ export default function HawkDashboard() {
             </div>
 
             <div className="bg-neutral-900/30 backdrop-blur-xl border border-white/5 rounded-3xl p-8 shadow-2xl space-y-6">
-              <h2 className="text-xs font-medium text-neutral-400 uppercase tracking-widest mb-2">Select Risk Tranche</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xs font-medium text-neutral-400 uppercase tracking-widest">Select Risk Tranche</h2>
+                {authenticated && (
+                  <span className="text-xs text-neutral-500">Wallet Balance: <span className="text-white">{userUsdcBalance.toFixed(2)} USDC</span></span>
+                )}
+              </div>
               
               <div className="border border-white/10 bg-black/40 rounded-2xl p-6 hover:border-white/20 transition-all">
                 <div className="flex justify-between items-start mb-4">
@@ -293,20 +328,32 @@ export default function HawkDashboard() {
                     <span className="text-xs text-orange-500/60 block">Target APY</span>
                   </div>
                 </div>
-                <button 
-                  onClick={handleDeposit}
-                  disabled={isDepositing}
-                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(234,88,12,0.2)] relative z-10 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                   {isDepositing ? (
-                     <span className="flex items-center gap-2">
-                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                       {depositStep}
-                     </span>
-                   ) : (
-                     "Deposit USDC"
-                   )}
-                </button>
+                
+                {/* NEW: Dynamic Deposit Input */}
+                <div className="relative z-10 space-y-3">
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    disabled={isDepositing}
+                    placeholder="Amount (e.g., 1000 USDC)"
+                    className="w-full bg-black/50 border border-orange-500/30 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-orange-500 transition-colors disabled:opacity-50"
+                  />
+                  <button 
+                    onClick={handleDeposit}
+                    disabled={isDepositing || !depositAmount}
+                    className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(234,88,12,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                     {isDepositing ? (
+                       <span className="flex items-center gap-2">
+                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                         {depositStep}
+                       </span>
+                     ) : (
+                       "Approve & Deposit USDC"
+                     )}
+                  </button>
+                </div>
               </div>
 
             </div>
