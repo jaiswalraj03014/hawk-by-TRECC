@@ -75,11 +75,11 @@ Deployment metadata lives in [`contracts/deployments/sepolia.json`](./contracts/
 
 | Logo | Protocol | How Hawk Uses It | Link |
 | --- | --- | --- | --- |
-| <img src="https://0g.ai/favicon.ico" width="24" alt="0G logo" /> | **0G** | Proof-of-Intent memory layer for storing agent decisions before execution. | [0g.ai](https://0g.ai/) |
-| <img src="https://www.google.com/s2/favicons?sz=64&domain=uniswap.org" width="24" alt="Uniswap logo" /> | **Uniswap** | Primary WETH/USDC quote source through the Uniswap Trading API; core strategy code also includes Uniswap V3 pool state reads. | [API docs](https://api-docs.uniswap.org/) |
+| <img src="./logos/0g.png" width="24" alt="0G logo" /> | **0G** | Proof-of-Intent memory layer for storing agent decisions before execution. | [0g.ai](https://0g.ai/) |
+| <img src="./logos/uniswap.png" width="24" alt="Uniswap logo" /> | **Uniswap** | Primary WETH/USDC quote source through the Uniswap Trading API; core strategy code also includes Uniswap V3 pool state reads. | [API docs](https://api-docs.uniswap.org/) |
 | <img src="https://www.google.com/s2/favicons?sz=64&domain=keeperhub.com" width="24" alt="KeeperHub logo" /> | **KeeperHub** | Execution and routing layer for agent actions after intent creation. | [keeperhub.com](https://keeperhub.com/) |
 | <img src="https://cdn.simpleicons.org/chainlink/375BD2" width="24" alt="Chainlink logo" /> | **Chainlink Price Feeds** | Reliable fallback oracle for ETH/USD pricing on Sepolia when Uniswap API data is unavailable. | [Price Feeds](https://docs.chain.link/data-feeds/price-feeds) |
-| <img src="https://www.google.com/s2/favicons?sz=64&domain=privy.io" width="24" alt="Privy logo" /> | **Privy** | Wallet login, embedded wallet support, and user onboarding. | [privy.io](https://www.privy.io/) |
+| <img src="./logos/privy.png" width="24" alt="Privy logo" /> | **Privy** | Wallet login, embedded wallet support, and user onboarding. | [privy.io](https://www.privy.io/) |
 | <img src="https://cdn.simpleicons.org/ethereum/FFFFFF" width="24" alt="ERC-7579 logo" /> | **ERC-7579** | Modular smart-account standard used as Hawk's agent containment model for scoped execution permissions. | [EIP-7579](https://eips.ethereum.org/EIPS/eip-7579) |
 | <img src="https://www.google.com/s2/favicons?sz=64&domain=ai.google.dev" width="24" alt="Gemini logo" /> | **Gemini API** | AI reasoning layer that emits structured trading intents with confidence and routing metadata. | [Gemini docs](https://ai.google.dev/gemini-api/docs/models/gemini) |
 | <img src="https://cdn.simpleicons.org/ethereum/FFFFFF" width="24" alt="Ethereum logo" /> | **Ethereum Sepolia** | Testnet deployment environment for the Hawk vault and oracle reads. | [ethereum.org](https://ethereum.org/developers/docs/networks/) |
