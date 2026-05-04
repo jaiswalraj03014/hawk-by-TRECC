@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { ethers } from 'ethers';
-import { secureIntentOn0G } from '../../../../src/modules/ZeroGMemory';
+import { Indexer, MemData } from '@0gfoundation/0g-ts-sdk';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -12,6 +12,40 @@ const chainlinkABI = [
   "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)"
 ];
 
+// --- 0G STORAGE LOGIC (Self-Contained) ---
+async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: string, txHash: string }> {
+    const privateKey = process.env.ZEROG_PRIVATE_KEY;
+    if (!privateKey) throw new Error("ZEROG_PRIVATE_KEY missing in environment variables.");
+
+    const EVM_RPC = 'https://evmrpc-testnet.0g.ai';
+    const INDEXER_RPC = 'https://indexer-storage-testnet-turbo.0g.ai';
+
+    const provider = new ethers.JsonRpcProvider(EVM_RPC);
+    const signer = new ethers.Wallet(privateKey, provider);
+    const indexer = new Indexer(INDEXER_RPC);
+
+    const jsonString = JSON.stringify(intentPayload, null, 2);
+    const dataBytes = new TextEncoder().encode(jsonString);
+    const memData = new MemData(dataBytes);
+
+    const [tree, treeErr] = await memData.merkleTree();
+    if (treeErr !== null) throw new Error(`Failed to generate Merkle Tree: ${treeErr}`);
+
+    const rootHash = tree?.rootHash();
+    console.log(`[0G LOG] Merkle Root Generated: ${rootHash}`);
+
+    const [tx, uploadErr] = await indexer.upload(memData, EVM_RPC, signer);
+    if (uploadErr !== null) throw new Error(`0G Storage Upload Failed: ${uploadErr}`);
+
+    console.log(`[0G LOG] Intent Secured! Transaction: ${tx}`);
+    
+    return {
+        rootHash: rootHash || "Unknown",
+        txHash: typeof tx === 'string' ? tx : tx.rootHash 
+    };
+}
+
+// --- CORE AGENT ROUTE ---
 export async function GET() {
   try {
     let currentWethPrice = "0.00";
@@ -85,7 +119,6 @@ export async function GET() {
       decision = JSON.parse(cleanJson);
     } catch (geminiError) {
       console.error("Gemini API limit hit! Activating Protocol Circuit Breaker...");
-      
       decision = {
         intent: "HOLD",
         confidence: 100,
