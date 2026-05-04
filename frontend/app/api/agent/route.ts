@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { ethers } from 'ethers';
+import { secureIntentOn0G } from '../../../../src/modules/ZeroGMemory';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -85,7 +86,6 @@ export async function GET() {
     } catch (geminiError) {
       console.error("Gemini API limit hit! Activating Protocol Circuit Breaker...");
       
-      // In production, if the brain goes offline, we DO NOT guess. We lock down the vault.
       decision = {
         intent: "HOLD",
         confidence: 100,
@@ -94,11 +94,26 @@ export async function GET() {
       };
     }
 
-    // 5. Return the verifiable data to the frontend
-    return NextResponse.json({
+    // 5. COMPILE THE INTENT PAYLOAD
+    const finalPayload = {
       timestamp: new Date().toISOString(),
       market_data: { weth_price: currentWethPrice },
       agent_decision: decision
+    };
+
+    // 6. SECURE PROOF OF INTENT ON 0G
+    let storageProof = null;
+    try {
+        console.log("Pushing Intent to 0G Storage...");
+        storageProof = await secureIntentOn0G(finalPayload);
+    } catch (storageError) {
+        console.error("Failed to upload to 0G. Proceeding with execution anyway.", storageError);
+    }
+
+    // 7. RETURN FINAL VERIFIABLE DATA TO FRONTEND
+    return NextResponse.json({
+      ...finalPayload,
+      zero_g_proof: storageProof 
     });
 
   } catch (error: any) {
