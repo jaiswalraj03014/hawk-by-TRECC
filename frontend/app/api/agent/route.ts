@@ -1,10 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { Indexer, MemData } from '@0gfoundation/0g-ts-sdk';
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Official Chainlink ETH/USD Price Feed on Sepolia
 const CHAINLINK_FEED_ADDRESS = "0x694AA1769357215DE4FAC081bf1f309aDC325306";
@@ -87,9 +85,7 @@ export async function GET() {
       }
     }
 
-    // 3. WAKE UP GEMINI
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    
+    // 3. WAKE UP THE AI ENGINE
     const prompt = `
       You are the core intelligence for "Hawk", an autonomous DeFi yield agent.
       Your job is to manage the "Alpha Tranche" which currently holds USDC.
@@ -111,14 +107,43 @@ export async function GET() {
 
     let decision;
 
-    // 4. PRODUCTION FALLBACK: The Circuit Breaker
+    // 4. MULTI-MODEL ROUTING & CIRCUIT BREAKER
     try {
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      decision = JSON.parse(cleanJson);
-    } catch (geminiError) {
-      console.error("Gemini API limit hit! Activating Protocol Circuit Breaker...");
+      const openaiKey = process.env.OPENAI_API_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY;
+
+      if (openaiKey) {
+        // --- ROUTE A: OPENAI ---
+        console.log("Routing intelligence through OpenAI...");
+        const openai = new OpenAI({ apiKey: openaiKey });
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini", // Fast, cheap, and excellent at JSON
+            messages: [
+                { role: "system", content: "You are a specialized DeFi trading algorithm. You output raw JSON only." },
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" } 
+        });
+
+        const responseText = response.choices[0].message.content || "{}";
+        decision = JSON.parse(responseText);
+
+      } else if (geminiKey) {
+        // --- ROUTE B: GEMINI ---
+        console.log("Routing intelligence through Gemini...");
+        const genAI = new GoogleGenerativeAI(geminiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        decision = JSON.parse(cleanJson);
+        
+      } else {
+        throw new Error("No API keys found for OpenAI or Gemini.");
+      }
+
+    } catch (aiError) {
+      console.error("AI Core limit hit or offline! Activating Protocol Circuit Breaker...");
       decision = {
         intent: "HOLD",
         confidence: 100,

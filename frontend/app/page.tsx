@@ -12,7 +12,6 @@ const montserrat = Montserrat({
 const VAULT_ADDRESS = "0x387Be077b26E473d42BE0fF919aeb63Cd241545c";
 const SEPOLIA_USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 
-// Added convertToAssets to read the true USDC value of the user's shares
 const vaultABI = [
   "function totalAssets() view returns (uint256)",
   "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
@@ -29,7 +28,7 @@ const usdcABI = [
 
 export default function HawkDashboard() {
   const { ready, authenticated, login, logout, user } = usePrivy();
-  const { wallets } = useWallets(); // Grab the active injected wallet
+  const { wallets } = useWallets(); 
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [totalLiquidity, setTotalLiquidity] = useState(0); 
@@ -43,8 +42,10 @@ export default function HawkDashboard() {
   const [userUsdcBalance, setUserUsdcBalance] = useState(0);
 
   // Real Transaction States
-  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [depositAmount, setDepositAmount] = useState<string>(""); // Alpha Input
+  const [protectedDepositAmount, setProtectedDepositAmount] = useState<string>(""); // Protected Input
   const [isDepositing, setIsDepositing] = useState(false);
+  const [activeDepositType, setActiveDepositType] = useState<"ALPHA" | "PROTECTED" | "">(""); // Tracks which button is spinning
   const [depositStep, setDepositStep] = useState("");
 
   const formatAddress = (address: string) => {
@@ -54,7 +55,6 @@ export default function HawkDashboard() {
   // 1. Fetch Real Protocol TVL & User Balance
   const fetchVaultData = useCallback(async () => {
     try {
-      // Use public RPC for read-only data
       const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
       const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, provider);
       const usdcContract = new ethers.Contract(SEPOLIA_USDC, usdcABI, provider);
@@ -67,16 +67,13 @@ export default function HawkDashboard() {
         setTotalLiquidity(0);
       }
 
-      // Fetch actual user balances if connected
       if (authenticated && user?.wallet?.address) {
          try {
-           // Read USDC Wallet Balance
            const usdcBal = await usdcContract.balanceOf(user.wallet.address);
            setUserUsdcBalance(Number(ethers.formatUnits(usdcBal, 6)));
 
-           // Read Vault Shares & True Value
            const shares = await vaultContract.balanceOf(user.wallet.address);
-           const formattedShares = Number(ethers.formatUnits(shares, 6)); // Assuming shares are 6 decimals
+           const formattedShares = Number(ethers.formatUnits(shares, 6)); 
            
            if (shares > 0n) {
              setUserShares(formattedShares);
@@ -129,14 +126,14 @@ export default function HawkDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. REAL Deposit Execution (Approve + Deposit)
-  const handleDeposit = async () => {
+  // 3. Shared Deposit Execution (Handles both Alpha and Protected)
+  const handleDeposit = async (amount: string, trancheType: "ALPHA" | "PROTECTED") => {
     if (!authenticated) {
       login();
       return;
     }
     
-    if (!depositAmount || isNaN(Number(depositAmount)) || Number(depositAmount) <= 0) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       alert("Please enter a valid USDC amount.");
       return;
     }
@@ -147,10 +144,10 @@ export default function HawkDashboard() {
     }
 
     setIsDepositing(true);
+    setActiveDepositType(trancheType);
     setDepositStep("Awaiting Signature...");
 
     try {
-      // Get the real Web3 provider from Privy
       const currentWallet = wallets[0];
       const provider = await currentWallet.getEthereumProvider();
       const ethersProvider = new ethers.BrowserProvider(provider as any);
@@ -159,7 +156,7 @@ export default function HawkDashboard() {
       const usdcContract = new ethers.Contract(SEPOLIA_USDC, usdcABI, signer);
       const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, signer);
 
-      const amountWei = ethers.parseUnits(depositAmount, 6); // USDC uses 6 decimals
+      const amountWei = ethers.parseUnits(amount, 6); 
 
       // Step A: Check Allowance
       setDepositStep("Checking Allowance...");
@@ -168,18 +165,20 @@ export default function HawkDashboard() {
       if (allowance < amountWei) {
         setDepositStep("Approving USDC...");
         const approveTx = await usdcContract.approve(VAULT_ADDRESS, amountWei);
-        await approveTx.wait(); // Wait for confirmation
+        await approveTx.wait(); 
       }
 
       // Step B: Execute Deposit
       setDepositStep("Confirming Deposit...");
       const depositTx = await vaultContract.deposit(amountWei, currentWallet.address);
       setDepositStep("Executing on-chain...");
-      await depositTx.wait(); // Wait for confirmation
+      await depositTx.wait(); 
 
-      // Step C: Success! Clean up and refresh UI
-      setDepositAmount("");
-      await fetchVaultData(); // Pull fresh balances from blockchain
+      // Step C: Success! Clean up
+      if (trancheType === "ALPHA") setDepositAmount("");
+      if (trancheType === "PROTECTED") setProtectedDepositAmount("");
+      
+      await fetchVaultData(); 
 
     } catch (error: any) {
       console.error("Deposit failed", error);
@@ -190,12 +189,9 @@ export default function HawkDashboard() {
       }
     } finally {
       setIsDepositing(false);
+      setActiveDepositType("");
       setDepositStep("");
     }
-  };
-
-  const handleProtectedDeposit = async () => {
-    alert("Vault is currently operating at maximum capacity for the Protected Tranche. Please use the Alpha Tranche.");
   };
 
   return (
@@ -298,8 +294,9 @@ export default function HawkDashboard() {
                 )}
               </div>
               
-              <div className="border border-white/10 bg-black/40 rounded-2xl p-6 hover:border-white/20 transition-all">
-                <div className="flex justify-between items-start mb-4">
+              {/* NEW FULLY FUNCTIONAL PROTECTED TRANCHE */}
+              <div className="border border-white/10 bg-black/40 rounded-2xl p-6 hover:border-white/20 transition-all relative overflow-hidden">
+                <div className="flex justify-between items-start mb-4 relative z-10">
                   <div>
                     <h3 className="text-lg font-semibold text-white">Protected Tranche</h3>
                     <p className="text-xs text-neutral-500 mt-1">Stable yield insulated from trading drawdowns.</p>
@@ -309,14 +306,34 @@ export default function HawkDashboard() {
                     <span className="text-xs text-neutral-500 block">Target APY</span>
                   </div>
                 </div>
-                <button 
-                  onClick={handleProtectedDeposit}
-                  className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center group"
-                >
-                  Deposit USDC
-                </button>
+                
+                <div className="relative z-10 space-y-3">
+                  <input
+                    type="number"
+                    value={protectedDepositAmount}
+                    onChange={(e) => setProtectedDepositAmount(e.target.value)}
+                    disabled={isDepositing}
+                    placeholder="Amount (e.g., 1000 USDC)"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500/50 transition-colors disabled:opacity-50"
+                  />
+                  <button 
+                    onClick={() => handleDeposit(protectedDepositAmount, "PROTECTED")}
+                    disabled={isDepositing || !protectedDepositAmount}
+                    className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                     {isDepositing && activeDepositType === "PROTECTED" ? (
+                       <span className="flex items-center gap-2">
+                         <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                         {depositStep}
+                       </span>
+                     ) : (
+                       "Approve & Deposit USDC"
+                     )}
+                  </button>
+                </div>
               </div>
 
+              {/* ALPHA TRANCHE */}
               <div className="border border-orange-500/30 bg-orange-950/10 rounded-2xl p-6 hover:border-orange-500/60 transition-all relative overflow-hidden">
                 <div className="flex justify-between items-start mb-4 relative z-10">
                   <div>
@@ -329,7 +346,6 @@ export default function HawkDashboard() {
                   </div>
                 </div>
                 
-                {/* NEW: Dynamic Deposit Input */}
                 <div className="relative z-10 space-y-3">
                   <input
                     type="number"
@@ -340,11 +356,11 @@ export default function HawkDashboard() {
                     className="w-full bg-black/50 border border-orange-500/30 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-orange-500 transition-colors disabled:opacity-50"
                   />
                   <button 
-                    onClick={handleDeposit}
+                    onClick={() => handleDeposit(depositAmount, "ALPHA")}
                     disabled={isDepositing || !depositAmount}
                     className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex justify-center items-center shadow-[0_0_20px_rgba(234,88,12,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                     {isDepositing ? (
+                     {isDepositing && activeDepositType === "ALPHA" ? (
                        <span className="flex items-center gap-2">
                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                          {depositStep}
