@@ -1,10 +1,10 @@
 import { Indexer, MemData } from '@0gfoundation/0g-ts-sdk';
 import { ethers } from 'ethers';
 
-// Official 0G Testnet Endpoints
 const EVM_RPC = 'https://evmrpc-testnet.0g.ai';
 const INDEXER_RPC = 'https://indexer-storage-testnet-turbo.0g.ai';
 
+// 1. Standalone function used by your Next.js API Route (route.ts)
 export async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: string, txHash: string }> {
     const privateKey = process.env.ZEROG_PRIVATE_KEY;
     if (!privateKey) {
@@ -12,19 +12,14 @@ export async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: 
     }
 
     try {
-        // 1. Setup Ethers Signer
         const provider = new ethers.JsonRpcProvider(EVM_RPC);
         const signer = new ethers.Wallet(privateKey, provider);
-
-        // 2. Initialize 0G Indexer
         const indexer = new Indexer(INDEXER_RPC);
 
-        // 3. Convert JSON Payload to 0G Memory Data
         const jsonString = JSON.stringify(intentPayload, null, 2);
         const dataBytes = new TextEncoder().encode(jsonString);
         const memData = new MemData(dataBytes);
 
-        // 4. Generate Merkle Tree (Cryptographic Proof)
         const [tree, treeErr] = await memData.merkleTree();
         if (treeErr !== null) {
             throw new Error(`Failed to generate Merkle Tree: ${treeErr}`);
@@ -33,7 +28,6 @@ export async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: 
         const rootHash = tree?.rootHash();
         console.log(`[0G LOG] Merkle Root Generated: ${rootHash}`);
 
-        // 5. Execute On-Chain Upload
         const [tx, uploadErr] = await indexer.upload(memData, EVM_RPC, signer);
         if (uploadErr !== null) {
             throw new Error(`0G Storage Upload Failed: ${uploadErr}`);
@@ -43,11 +37,25 @@ export async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: 
         
         return {
             rootHash: rootHash || "Unknown",
-            txHash: typeof tx === 'string' ? tx : tx.rootHash // Handles different SDK version returns
+            txHash: typeof tx === 'string' ? tx : tx.rootHash 
         };
 
     } catch (error) {
         console.error("0G Integration Error:", error);
         throw error;
+    }
+}
+
+// 2. Class wrapper used by your autonomous engine (index.ts)
+export class ZeroGMemory {
+    async logIntent(intentPayload: any): Promise<string> {
+        try {
+            // We just call the function above so we don't repeat code!
+            const result = await secureIntentOn0G(intentPayload);
+            return result.txHash;
+        } catch (error) {
+            console.error("ZeroGMemory Class Error:", error);
+            return "0xError";
+        }
     }
 }
