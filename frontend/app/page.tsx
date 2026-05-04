@@ -15,6 +15,7 @@ const SEPOLIA_USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 const vaultABI = [
   "function totalAssets() view returns (uint256)",
   "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
+  "function withdraw(uint256 assets, address receiver, address owner) returns (uint256 shares)",
   "function balanceOf(address account) view returns (uint256)",
   "function convertToAssets(uint256 shares) view returns (uint256)",
   "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)"
@@ -45,8 +46,12 @@ export default function HawkDashboard() {
   const [depositAmount, setDepositAmount] = useState<string>(""); // Alpha Input
   const [protectedDepositAmount, setProtectedDepositAmount] = useState<string>(""); // Protected Input
   const [isDepositing, setIsDepositing] = useState(false);
-  const [activeDepositType, setActiveDepositType] = useState<"ALPHA" | "PROTECTED" | "">(""); // Tracks which button is spinning
+  const [activeDepositType, setActiveDepositType] = useState<"ALPHA" | "PROTECTED" | "">(""); 
   const [depositStep, setDepositStep] = useState("");
+  
+  // Withdrawal States
+  const [withdrawAmount, setWithdrawAmount] = useState<string>("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const formatAddress = (address: string) => {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
@@ -194,6 +199,34 @@ export default function HawkDashboard() {
     }
   };
 
+  // 4. Withdrawal Execution
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || isNaN(Number(withdrawAmount)) || Number(withdrawAmount) <= 0) return;
+    
+    setIsWithdrawing(true);
+    try {
+      const currentWallet = wallets[0];
+      const provider = await currentWallet.getEthereumProvider();
+      const ethersProvider = new ethers.BrowserProvider(provider as any);
+      const signer = await ethersProvider.getSigner();
+      
+      const vaultContract = new ethers.Contract(VAULT_ADDRESS, vaultABI, signer);
+      const amountWei = ethers.parseUnits(withdrawAmount, 6);
+
+      // ERC-4626 Withdraw takes (amount, receiver, owner)
+      const tx = await vaultContract.withdraw(amountWei, currentWallet.address, currentWallet.address);
+      await tx.wait();
+
+      setWithdrawAmount("");
+      await fetchVaultData(); // Refresh the UI balances!
+    } catch (error) {
+      console.error("Withdraw failed", error);
+      alert("Withdraw failed. Check console or ensure vault has enough liquid USDC.");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   return (
     <main className={`min-h-screen bg-[#020202] text-neutral-300 relative overflow-hidden ${montserrat.className}`}>
       
@@ -247,10 +280,10 @@ export default function HawkDashboard() {
           </div>
         </header>
 
-        {/* Real User Portfolio Card */}
+        {/* Real User Portfolio Card with Withdraw */}
         {authenticated && userShares > 0 && (
-          <div className="bg-gradient-to-r from-neutral-900/80 to-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-between transition-all duration-500">
-            <div className="flex gap-12 items-center">
+          <div className="bg-gradient-to-r from-neutral-900/80 to-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex flex-col md:flex-row items-center justify-between gap-8 transition-all duration-500">
+            <div className="flex gap-12 items-center w-full md:w-auto">
                <div>
                  <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Your Alpha Position (Real Value)</h2>
                  <div className="text-4xl font-light text-white transition-all duration-300">
@@ -262,6 +295,25 @@ export default function HawkDashboard() {
                  <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Vault Shares Held</h2>
                  <div className="text-xl font-medium text-neutral-400 transition-all duration-300">{userShares.toLocaleString()} HA-USDC</div>
                </div>
+            </div>
+
+            {/* WITHDRAWAL UI */}
+            <div className="flex items-center gap-3 w-full md:w-auto bg-black/50 p-2 rounded-2xl border border-white/5">
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                disabled={isWithdrawing}
+                placeholder="Amount (USDC)"
+                className="w-32 bg-transparent px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
+              />
+              <button 
+                onClick={handleWithdraw}
+                disabled={isWithdrawing || !withdrawAmount}
+                className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-50"
+              >
+                {isWithdrawing ? "Processing..." : "Withdraw"}
+              </button>
             </div>
           </div>
         )}
@@ -294,7 +346,7 @@ export default function HawkDashboard() {
                 )}
               </div>
               
-              {/* NEW FULLY FUNCTIONAL PROTECTED TRANCHE */}
+              {/* FULLY FUNCTIONAL PROTECTED TRANCHE */}
               <div className="border border-white/10 bg-black/40 rounded-2xl p-6 hover:border-white/20 transition-all relative overflow-hidden">
                 <div className="flex justify-between items-start mb-4 relative z-10">
                   <div>
@@ -404,7 +456,7 @@ export default function HawkDashboard() {
                 </h2>
                 <div className="flex gap-4 text-[11px] font-medium uppercase tracking-wider">
                   <span className="text-neutral-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-neutral-600"></span> 0G Secured</span>
-                  <span className="text-neutral-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></span> Gemini 2.5 Active</span>
+                  <span className="text-neutral-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></span> Multi-Model Active</span>
                 </div>
               </div>
               

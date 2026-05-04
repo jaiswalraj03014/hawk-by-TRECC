@@ -39,7 +39,7 @@ async function secureIntentOn0G(intentPayload: any): Promise<{ rootHash: string,
     
     return {
         rootHash: rootHash || "Unknown",
-        txHash: typeof tx === 'string' ? tx : tx.rootHash 
+        txHash: typeof tx === 'string' ? tx : 'txHash' in tx ? tx.txHash : tx.txHashes[0] 
     };
 }
 
