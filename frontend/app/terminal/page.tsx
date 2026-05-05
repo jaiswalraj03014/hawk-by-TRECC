@@ -96,7 +96,7 @@ export default function TerminalPage() {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#000000e0', borderColor: '#ffffff20', borderRadius: '12px', color: '#fff' }}
                   itemStyle={{ fontSize: '14px', fontWeight: 500 }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
+                  formatter={(value) => [`$${Number(value ?? 0).toLocaleString()}`, '']}
                 />
                 <Area type="monotone" dataKey="marketValue" name="WETH Hold" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorMarket)" />
                 <Area type="monotone" dataKey="agentValue" name="Hawk AI Agent" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorAgent)" />
